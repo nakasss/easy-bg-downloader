@@ -9,13 +9,26 @@ public class MobileUIView : MonoBehaviour {
 
 	// Use this for initialization
 	void Start () {
-		Debug.Log ("Font size : " + percentageLabel.fontSize);
+		
 	}
 	
 	// Update is called once per frame
 	void Update () {
 	
 	}
+
+
+	/*
+	 * Header
+	 */
+	[HeaderAttribute ("Header")]
+	[SerializeField]
+	private Text headerLabel;
+
+	public void ChangeHeaderLabel (string title) {
+		headerLabel.text = title;
+	}
+	// END : Header
 
 
 	/*
@@ -40,23 +53,46 @@ public class MobileUIView : MonoBehaviour {
 	 * Downloading Panel
 	 */
 	[HeaderAttribute ("Downloading Panel")]
+	public Slider progressManager;
 	[SerializeField]
 	private Text percentageLabel;
 	[SerializeField]
-	private Image progressCircle;
+	private Text downloadingFileNameLabel;
 
-	public void changePercentageLabel (float progress) {
+	public void ChangeProgress (float progress) {
+		this.progressManager.value = progress;
+		//this.changePercentageLabel (progress);
+	}
+
+	public void ChangePercentageLabel (float progress) {
 		int percentage = (int)(progress * 100.0f);
 		percentageLabel.text = percentage.ToString () + "%";
 	}
 
-	public void changeProgressCircle (float progress) {
-		progressCircle.fillAmount = progress;
-		this.changePercentageLabel (progress);
+	public void ChangeDownloadingFileName (string fileName) {
+		downloadingFileNameLabel.text = fileName;
 	}
+
+	public void ChangeDownloadingFileNameWithPath (string filePath) {
+		string fileName = LocalFileManager.GetFileNameByFilePath (filePath);
+		this.ChangeDownloadingFileName (fileName);
+	}
+		
 	// END : Downloading Panel
-
-
+    
+    /*
+	 * Text Feild
+	 */
+    [HeaderAttribute ("Text Field")]
+    [SerializeField]
+    private InputField textArea;
+    
+    public string GetInputText() {
+        return textArea.text;
+    }
+    
+    // END : Start&StopButton
+    
 	/*
 	 * Start&StopButton
 	 */

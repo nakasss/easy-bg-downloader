@@ -101,8 +101,6 @@ public class BrowseView : MonoBehaviour {
 	}
 
 	private static string GetDataSizeLabel (long byteSize) {
-		string dataLabel = "";
-
 		if (byteSize < 1000) {
 			return byteSize + " B";
 		}
