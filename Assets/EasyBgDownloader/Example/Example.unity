@@ -2229,7 +2229,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 0469ef8d202f5416395de21d8e825f4f, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  requestURI: 
+  fileURL: 
   destinationDirPath: 
   notificationEnabled: 0
   cacheEnabled: 0
