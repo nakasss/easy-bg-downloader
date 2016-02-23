@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using System;
 using System.Collections;
 
 [RequireComponent(typeof(MobileUIView))]
@@ -21,7 +22,7 @@ public class MobileUIController : MonoBehaviour {
 	// Update is called once per frame
 	void Update () {
        //update download progress
-	   if (!string.IsNullOrEmpty(currentDownloadURL) && ebdCtl.IsDownloading(currentDownloadURL)) {
+	   if (!string.IsNullOrEmpty(currentDownloadURL) && ebdCtl.IsRunning(currentDownloadURL)) {
            mobileUIView.ChangeHeaderLabel("DOWNLOADING");
            mobileUIView.ChangeDownloadingFileNameWithPath(currentDownloadURL);
            mobileUIView.ChangeProgress(ebdCtl.GetProgress(currentDownloadURL));
@@ -55,17 +56,17 @@ public class MobileUIController : MonoBehaviour {
 
 	private void OnClickStartBtn (string inputURL) {
         currentDownloadURL = inputURL;
-        ebdCtl.Start(inputURL);
 		mobileUIView.EnableStopButton ();
+        ebdCtl.StartDL(inputURL);
 	}
 
 	private void OnClickStopBtn (string inputURL) {
-        currentDownloadURL = "";
-        ebdCtl.Stop(inputURL);
+        currentDownloadURL = null;
         mobileUIView.ChangeHeaderLabel("DOWNLOAD CANCELD");
         mobileUIView.ChangeDownloadingFileName("No file downloading");
         mobileUIView.ChangeProgress(0.0f);
 		mobileUIView.EnableStartButton ();
+        ebdCtl.StopDL(inputURL);
 	}
 	// END : Start&StopButton
 
@@ -88,10 +89,14 @@ public class MobileUIController : MonoBehaviour {
 	 * EBD Event
 	 */
 	public void OnCompleteDownload (string requestURL, string destPath) {
-		browseView.RefreshFileList ();
-		mobileUIView.EnableStartButton ();
-        mobileUIView.ChangeDownloadingFileName("No file downloading");
-        mobileUIView.ChangeHeaderLabel("FINISH DOWNLOAD");
+        browseView.RefreshFileList ();
+        
+        if (currentDownloadURL == requestURL) {
+		    mobileUIView.EnableStartButton ();
+            mobileUIView.ChangeDownloadingFileName("No file downloading");
+            mobileUIView.ChangeHeaderLabel("FINISH DOWNLOAD");
+            mobileUIView.ChangeProgress(0.0f);
+        }
 	}
     
     public void OnErrorDownload (string requestURL, string errorMessage) {

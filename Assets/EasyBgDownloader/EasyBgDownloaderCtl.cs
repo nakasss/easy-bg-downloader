@@ -7,32 +7,17 @@ using UnityEngine;
 
 
 public class EasyBgDownloaderCtl : MonoBehaviour {
-	//Show inspector values
-	[SerializeField]
-	private string requestURI = "";
+    [SerializeField]
+	private string fileURL = "";
 	[SerializeField]
 	private string destinationDirPath = "";
+    [SerializeField]
 	public bool notificationEnabled = false;
+    [SerializeField]
 	public bool cacheEnabled = false;
 
-	//Inner Value
-	private bool isDownloading = false;
+	//private bool isDownloading = false;
 	private static readonly string DEFAULT_CACHE_DIR = "ebd_tmp";
-
-	//Property
-	public string RequestURI {
-		set { 
-			this.requestURI = value;
-			#if UNITY_ANDROID
-			if (IsDownloadingNative()) {
-				isDownloading = true;
-			} else {
-				isDownloading = false;
-			}
-			#endif
-		}
-		get { return this.requestURI; }
-	}
 
 	public string DestinationDirectoryPath {
 		set { destinationDirPath = value; }
@@ -59,11 +44,9 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	}
 
 	//Event delegate values
-	public delegate void StartDL (string requestURL);
 	public delegate void CompleteDL (string requestURL, string filePath);
-	public delegate void ErrorDL (string requestURL, string errorMessage, DOWNLOAD_ERROR errorCode = 0);
+	public delegate void ErrorDL (string requestURL, DOWNLOAD_ERROR errorCode, string errorMessage);
 	public delegate void ClickAndroidDLStatusBar (string requestURL);
-	public CompleteDL OnStart;
 	public CompleteDL OnComplete;
 	public ErrorDL OnError;
 	public ClickAndroidDLStatusBar OnClickAndroidStatus;
@@ -71,7 +54,8 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 
 	public enum DOWNLOAD_STATUS {
 		IN_QUEUE = 0, //PENDING || RUNNING || PAUSED || FAILED
-        PENDING = 10, 
+        NOT_IN_QUEUE = -100,
+        PENDING = 10,
 		RUNNING = 20,
 		PAUSED = 30,
 		FAILED = 40
@@ -83,6 +67,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
         INVALID_DIR_PATH = 3,
         UNKNOWN_ERROR = 4
 	}
+
 
 
 	// Use this for initialization
@@ -97,8 +82,10 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 
 	void OnApplicationPause (bool pauseStatus) {
 		if (pauseStatus) {
+            Debug.Log("Start Update in Unity");
 			pauseEBD ();
 		} else {
+            Debug.Log("Stop Update in Unity");
 			resumeEBD ();
 		}
 	}
@@ -106,10 +93,32 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	void OnDestroy () {
 		terminateEBD ();
 	}
+    
+    
+    
+    #region /*** Common Functions ***/
+	/*
+	* Common Functions
+	*/
+	private bool isInvalidURL (string url) {
+		//Has Scheme or not
+		//file url or not
+		Uri uriResult;
+		if (Uri.TryCreate (url, UriKind.Absolute, out uriResult) && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps)) {
+			return false;		
+		} else {
+			return true;
+		}
+	}
 
+	private bool isInvalidPath (string destPath) {
+		//No dir
+		return !Directory.Exists(destPath);
+	}
 
-
-
+	#endregion
+    
+    #if !UNITY_EDITOR && !UNITY_STANDALONE
 	#if UNITY_ANDROID
 
 	#region Android Functions
@@ -122,77 +131,154 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	/*
 	 * Life Cycle Control
 	 */
-    private void initEBD () {
-		//Set Event Listener
-		getJavaObj().Call("setCompleteReceiver");
-		getJavaObj().Call("setStatusClickReceiver");
-
-		getJavaObj ().Call ("startUpdateTask");
+    private void initEBD() {
+		initEBDInAndroid();
 	}
 
-	private void resumeEBD () {
-		getJavaObj ().Call ("startUpdateTask");
-
-		if (IsDownloadingNative()) {
-			isDownloading = true;
-		} else {
-			isDownloading = false;
-		}
+	private void resumeEBD() {
+        resumeEBDInAndroid();
 	}
 
-	private void pauseEBD () {
-		getJavaObj ().Call ("stopUpdateTask");
+	private void pauseEBD() {
+        pauseEBDInAndroid();
 	}
     
-    private void terminateEBD () {
-		//Unset Event Listerner
-		getJavaObj().Call("unsetCompleteReceiver");
-		getJavaObj().Call("unsetStatusClickReceiver");
+    private void terminateEBD() {
+		terminateEBDInAndroid();
 	}
 
 	/*
 	 * Download Control
 	 */
-    public void Start (string requestURL) {
-        //Check URL
+    public void StartDL (string requestURL = null, string naviTitle = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return;
+            }
+            requestURL = fileURL;
+        }
+        
         if (isInvalidURL(requestURL)) {
+            //ERROR : Invalid URL error
             return;
         }
 
-        //Check Dir path
         if (isInvalidPath(DestinationDirectoryPath)) {
+            //ERROR : Invalid Directory Path Error
             return;
         }
+        
+        if (string.IsNullOrEmpty(naviTitle)) {
+            naviTitle = Path.GetFileName(requestURL);
+        }
+        
+        string destFilePath = "file://" + DestinationDirectoryPath + "/" + Path.GetFileName(requestURL); 
+        
+        startInAndroid(requestURL, destFilePath, naviTitle);
 	}
 
-	public void Stop (string requestURL) {
+	public void StopDL (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return;
+            }
+            requestURL = fileURL;
+        }
+        
+        if (isInvalidURL(requestURL)) {
+            //ERROR : Invalid URL error
+            return;
+        }
+        
+        stopInAndroid(requestURL);
 	}
-
-	public float GetProgress (string requestURL) {
+    
+    /*
+     * Download Status
+     */
+    public int GetStatus (string requestURL) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return (int)DOWNLOAD_STATUS.NOT_IN_QUEUE;
+            }
+            requestURL = fileURL;
+        }
+        
+        return getStatusInAndroid(requestURL);
+    }
+    
+    public bool IsInQueue (string requestURL) {
+        return (GetStatus(requestURL) != (int)DOWNLOAD_STATUS.NOT_IN_QUEUE) ? true : false;
+    }
+    
+    public bool IsPending (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.PENDING) ? true : false;
+    }
+    
+    public bool IsRunning (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.RUNNING) ? true : false;
+    }
+    
+    public bool IsPaused (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.PAUSED) ? true : false;
+    }
+    
+    public bool IsFailed (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.FAILED) ? true : false;
+    }
+    
+    
+    /*
+     * Download Progress
+     */
+	public float GetProgress (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return 0.0f;
+            }
+            requestURL = fileURL;
+        }
+        
+        return getProgressInAndroid(requestURL);
 	}
-
-	public bool IsDownloading (string requestURL) {
-	}
+    
 
 	/*
 	 * Download Event
 	 */
-    private void onCompleteDL (string requestURL, string filePath) {
+    private void onCompleteDL (string taskInfo) {
+        if (OnComplete == null) return;
+        string[] taskInfoStrings = taskInfo.Split(','); //[0] requestURL, [1] destinationPath
+        string requestURL = !string.IsNullOrEmpty(taskInfoStrings[0]) ? taskInfoStrings[0] : "";
+        string destFilePath = !string.IsNullOrEmpty(taskInfoStrings[1]) ? taskInfoStrings[1] : "";
         
-
-		if (OnComplete != null) {
-			OnComplete (requestURL, filePath);
-		}
+        OnComplete (requestURL, destFilePath);
 	}
 
-	private void onErrorDL (string requestURL, string errorMessage, DOWNLOAD_ERROR errorCode) {
-		//TODO : convert error message to error code
-		if (OnError != null) {
-			OnError (requestURL, errorMessage, errorCode);
-		}
+    private void onErrorDL (string errorInfo) {
+        if (OnError == null) return;
+        
+        string[] errorInfoStrings = errorInfo.Split(','); //[0] requestURL, [1] errorCode, [2] errorMessage
+		string requestURL = !string.IsNullOrEmpty(errorInfoStrings[0]) ? errorInfoStrings[0] : "";
+        int errorCodeInt = !string.IsNullOrEmpty(errorInfoStrings[1]) ? errorInfoStrings[1] : (int)DOWNLOAD_ERROR.UNKNOWN_ERROR;
+        DOWNLOAD_ERROR errorCode;
+        switch (errorCodeInt) {
+            case (int)DOWNLOAD_ERROR.NETWORK_ERROR:
+                errorCode = DOWNLOAD_ERROR.NETWORK_ERROR;
+                break;
+            default:
+                errorCode = DOWNLOAD_ERROR.UNKNOWN_ERROR;
+                break;
+        }
+        string errorMessage = !string.IsNullOrEmpty(errorInfoStrings[2]) ? errorInfoStrings[2] : "Unknown Error.";
+        OnError (requestURL, errorCode, errorMessage);
 	}
     
-    private void onClickAndroidStatusBar (string requestURL) {
+    private void onClickAndroidStatusBar (string requestURL  = null) {
         
         if (OnClickAndroidStatus != null) {
             OnClickAndroidStatus(requestURL);
@@ -203,28 +289,40 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	/*
 	 * Platform Specific Functions
 	 */
+
      
     /*
 	 * Plugin Interface
 	 */
     private AndroidJavaObject getJavaObj() {
 		if (androidJavaObj == null) {
-			androidJavaObj = new AndroidJavaObject(ANDROID_DOWNLOAD_MANAGER_PACKAGE_CLASS_NAME, gameObject.name);
+			androidJavaObj = new AndroidJavaObject(ANDROID_DOWNLOAD_MANAGER_PACKAGE_CLASS_NAME, gameObject.name, cacheEnabled);
 		}
-
 		return androidJavaObj;
 	}
+    private void initEBDInAndroid () {
+		getJavaObj().Call("initEBD");
+	}
+	private void resumeEBDInAndroid () {
+		getJavaObj ().Call ("resumeEBD");
+	}
+	private void pauseEBDInAndroid () {
+		getJavaObj ().Call ("pauseEBD");
+	}
+    private void terminateEBDInAndroid () {
+		getJavaObj().Call("terminateEBD");
+	}
     private void startInAndroid(string requestURL, string destPath, string naviTitle) {
-        getJavaObj().Call("startDownload", requestURL, destPath, naviTitle);
+        getJavaObj().Call("startDL", requestURL, destPath, naviTitle);
     }
     private void stopInAndroid(string requestURL) {
-        getJavaObj().Call("stopDownload", requestURL);
+        getJavaObj().Call("stopDL", requestURL);
+    }
+    private int getStatusInAndroid(string requestURL) {
+        return getJavaObj().Call<int>("getStatus", requestURL);
     }
     private float getProgressInAndroid(string requestURL) {
-        getJavaObj().Call<float>("getProgress", requestURL);
-    }
-    private bool isDownloadingInAndroid(string requestURL) {
-        getJavaObj().Call<bool> ("isDownloading", requestURI);
+        return getJavaObj().Call<float>("getProgress", requestURL);
     }
     //Test
 	public void CallTest () {
@@ -234,139 +332,197 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 		getJavaObj().CallStatic("callStaticTest");
 	}
     
-    
-    
-     
-	/*
-	 * Android Functions
-	 */
-
-	// Start Download
-	public void StartDownload (string statusTitle = null) {
-		if (IsSetRequestURI() && IsSetDestURI()) {
-			if (statusTitle == null) {
-				statusTitle = Path.GetFileName (requestURI);
-			}
-			GetJavaObj().CallStatic<long>("startDownload", requestURI, destinationURI, statusTitle);
-			isDownloading = true;
-		}
-	}
-
-	//Stop Download
-	public void StopDownload () {
-		if (IsSetRequestURI()) {
-			GetJavaObj ().CallStatic ("stopDownload", requestURI);
-		}
-	}
-
-	//Get Progress
-	public int GetProgress () {
-		int progress = -1;
-		if (IsSetRequestURI()) {
-			long downloadID = GetDownloadID (requestURI);
-			progress = GetJavaObj ().Call<int> ("getProgress", downloadID);
-		}
-		return progress;
-	}
-
-	// downloading or not by url
-	private bool IsDownloadingNative () {
-		if (IsSetRequestURI()) {
-			return GetJavaObj ().CallStatic<bool> ("isDownloading", requestURI);	
-		} else {
-			return false;
-		}
-	}
-
-
-	//Onlu Android function
-	private long GetDownloadID (string url) {
-		return GetJavaObj().CallStatic<long>("getDownloadID", url);
-	}
-
-	//Called When download Complete
-	private void OnCompleteDownload (string id) {
-		Debug.Log ("Finish Download ID : " + id);
-		if (OnComplete != null) {
-			OnComplete (id);
-		}
-		isDownloading = false;
-	}
-
-	//Called When download status clicked
-	private void OnClickDownloadStatus (string message) {
-		if (OnClickStatus != null) {
-			OnClickStatus ();
-		}
-	}
-
 	#endregion // END : Android Functions
 
 	#elif UNITY_IPHONE // end : UNITY_ANDROID
 
 	#region iOS Functions
-	/*
-	 * EBD Interface
+    /*
+	 * Platform values
 	 */
-	[DllImport("__Internal")]
+
+	/*
+	 * Life Cycle Control
+	 */
+    private void initEBD() {
+		EBDInterfaceInit();
+	}
+
+	private void resumeEBD() {
+        EBDInterfaceResume();
+	}
+
+	private void pauseEBD() {
+        EBDInterfacePause();
+	}
+    
+    private void terminateEBD() {
+		EBDInterfaceTerminate();
+	}
+
+	/*
+	 * Download Control
+	 */
+    public void StartDL (string requestURL = null, string naviTitle = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return;
+            }
+            requestURL = fileURL;
+        }
+        
+        if (isInvalidURL(requestURL)) {
+            //ERROR : Invalid URL error
+            return;
+        }
+
+        if (isInvalidPath(DestinationDirectoryPath)) {
+            //ERROR : Invalid Directory Path Error
+            return;
+        }
+        /*        
+        if (string.IsNullOrEmpty(naviTitle)) {
+            naviTitle = Path.GetFileName(requestURL);
+        }
+        */
+        string destFilePath = "file://" + DestinationDirectoryPath + "/" + Path.GetFileName(requestURL); 
+        
+        EBDInterfaceStartDL(requestURL, destFilePath);
+	}
+
+	public void StopDL (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return;
+            }
+            requestURL = fileURL;
+        }
+        
+        if (isInvalidURL(requestURL)) {
+            //ERROR : Invalid URL error
+            return;
+        }
+        
+        EBDInterfaceStopDL(requestURL);
+	}
+    
+    /*
+     * Download Status
+     */
+    public int GetStatus (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return (int)DOWNLOAD_STATUS.NOT_IN_QUEUE;
+            }
+            requestURL = fileURL;
+        }
+        
+        return EBDInterfaceGetStatus(requestURL);
+    }
+    
+    public bool IsInQueue (string requestURL) {
+        return (GetStatus(requestURL) != (int)DOWNLOAD_STATUS.NOT_IN_QUEUE) ? true : false;
+    }
+    
+    public bool IsPending (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.PENDING) ? true : false;
+    }
+    
+    public bool IsRunning (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.RUNNING) ? true : false;
+    }
+    
+    public bool IsPaused (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.PAUSED) ? true : false;
+    }
+    
+    public bool IsFailed (string requestURL) {
+        return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.FAILED) ? true : false;
+    }
+    
+    
+    /*
+     * Download Progress
+     */
+	public float GetProgress (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return 0.0f;
+            }
+            requestURL = fileURL;
+        }
+        
+        return EBDInterfaceGetProgress(requestURL);
+	}
+    
+
+	/*
+	 * Download Event
+	 */
+    private void onCompleteDL (string taskInfo) {
+        if (OnComplete == null) return;
+        string[] taskInfoStrings = taskInfo.Split(','); //[0] requestURL, [1] destinationPath
+        string requestURL = !string.IsNullOrEmpty(taskInfoStrings[0]) ? taskInfoStrings[0] : "";
+        string destFilePath = !string.IsNullOrEmpty(taskInfoStrings[1]) ? taskInfoStrings[1] : "";
+        
+        OnComplete (requestURL, destFilePath);
+	}
+
+    private void onErrorDL (string errorInfo) {
+        if (OnError == null) return;
+        
+        string[] errorInfoStrings = errorInfo.Split(','); //[0] requestURL, [1] errorCode, [2] errorMessage
+		string requestURL = !string.IsNullOrEmpty(errorInfoStrings[0]) ? errorInfoStrings[0] : "";
+        int errorCodeInt = !string.IsNullOrEmpty(errorInfoStrings[1]) ? errorInfoStrings[1] : (int)DOWNLOAD_ERROR.UNKNOWN_ERROR;
+        DOWNLOAD_ERROR errorCode;
+        switch (errorCodeInt) {
+            case (int)DOWNLOAD_ERROR.NETWORK_ERROR:
+                errorCode = DOWNLOAD_ERROR.NETWORK_ERROR;
+                break;
+            default:
+                errorCode = DOWNLOAD_ERROR.UNKNOWN_ERROR;
+                break;
+        }
+        string errorMessage = !string.IsNullOrEmpty(errorInfoStrings[2]) ? errorInfoStrings[2] : "Unknown Error.";
+        OnError (requestURL, errorCode, errorMessage);
+	}
+
+
+	/*
+	 * Platform Specific Functions
+	 */
+    
+     
+    /*
+	 * Plugin Interface
+	 */
+    [DllImport("__Internal")]
 	private static extern void EBDInterfaceInit (string productName, string gameObjName, bool cacheEnabled);
 	[DllImport("__Internal")]
-	private static extern void EBDInterfaceDestory ();
-	[DllImport("__Internal")]
-	private static extern void EBDInterfaceStartDownload (string requestedURL, string destinationPath);
-	[DllImport("__Internal")]
-	private static extern void EBDInterfaceStopDownload (string requestedURL);
-	[DllImport("__Internal")]
-	private static extern float EBDInterfaceGetProgress (string requestedURL);
-	[DllImport("__Internal")]
-	private static extern bool EBDInterfaceIsDownloading (string requestedURL);
-
-
-	//test
+	private static extern void EBDInterfaceTerminate ();
+    [DllImport("__Internal")]
+	private static extern void EBDInterfaceResume ();
+    [DllImport("__Internal")]
+	private static extern void EBDInterfacePause ();
+    [DllImport("__Internal")]
+	private static extern void EBDInterfaceStartDL (string requestURL,  string destPath);
+    [DllImport("__Internal")]
+	private static extern void EBDInterfaceStopDL (string requestURL);
+    [DllImport("__Internal")]
+	private static extern int EBDInterfaceGetStatus (string requestURL);
+    [DllImport("__Internal")]
+	private static extern float EBDInterfaceGetProgress (string requestURL);
+    //test
 	[DllImport("__Internal")]
 	private static extern void EasyBgDownloaderTestVoid ();
 	[DllImport("__Internal")]
 	private static extern int EasyBgDownloaderTestReturnInt ();
 	[DllImport("__Internal")]
 	private static extern void EasyBgDownloaderTestValueInt (int i);
-
-
-	private void InitPlugin () {
-	//Set Event Listener
-	}
-
-	private void DestoryPlugin () {
-	//Unset Event Listerner
-	}
-
-	private void ResumePlugin () {
-	}
-
-	private void PausePlugin () {
-	}
-
-	public void StartDownload () {
-
-	}
-	public void StopDownload () {
-
-	}
-	public int GetProgress () {
-		int progress = -1;
-		return progress;
-	}
-	private bool IsDownloadingNative () {
-		return false;
-	}
-	//Called When download Complete
-	private void OnCompleteDownload () {
-		if (OnComplete != null) {
-			OnComplete ("");
-		}
-		isDownloading = false;
-	}
-
-	//Test
 	public void CallTest () {
 		EasyBgDownloaderTestVoid ();
 	}
@@ -376,20 +532,10 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	public void CallUnitySendMessage (string message) {
 		Debug.Log ("Get Message and Call it from Unity : " + message);
 	}
+    
 
-	//Called When download Complete
-	private void OnCompleteDownload (string url) {
-		Debug.Log ("Finish Download URL : " + url);
-		if (OnComplete != null) {
-			OnComplete (url);
-		}
-
-		isDownloading = false;
-	}
-
-	#endregion // EDN : iOS Functions
-
-	//#endif
+	#endregion // END : iOS Functions
+	#endif
 
 	#else 
 
@@ -420,43 +566,83 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	/*
 	 * Download Control
 	 */
-	public void Start (string requestURL) {
-		if (isInQueue(requestURL)) {
-			return;
-		}
+	public void StartDL (string requestURL = null, string naviTitle = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return;
+            }
+            requestURL = fileURL;
+        }
         
-        //Check URL
         if (isInvalidURL(requestURL)) {
+            //ERROR : Invalid URL error
             return;
         }
 
-        //Check Dir path
         if (isInvalidPath(DestinationDirectoryPath)) {
+            //ERROR : Invalid Directory Path Error
             return;
         }
+        
+        if (isInQueue(requestURL)) {
+			return;
+		}
 
 		addTask (requestURL, DestinationDirectoryPath);
 		StartCoroutine ("startInEditor", requestURL);
 	}
 
-	public void Stop (string requestURL) {
+	public void StopDL (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return;
+            }
+            requestURL = fileURL;
+        }
+        
 		stopInEditor (requestURL);
 	}
+    
+    public int GetStatus (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return (int)DOWNLOAD_STATUS.NOT_IN_QUEUE;
+            }
+            requestURL = fileURL;
+        }
+        
+        return 1;
+    }
 
-	public float GetProgress (string requestURL) {
+	public bool IsRunning (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return false;
+            }
+            requestURL = fileURL;
+        }
+        
+        return isInQueue (requestURL) ? true : false; 
+	}
+    
+    public float GetProgress (string requestURL = null) {
+        if (string.IsNullOrEmpty(requestURL)) {
+            if (string.IsNullOrEmpty(fileURL)) {
+                //ERROR : NULL Reference URL error
+                return 0.0f;
+            }
+            requestURL = fileURL;
+        }
+        
 		if (requestURLInEditor != requestURL) {
 			changeCurrentTask (requestURL);
 		}
 
 		return currentProgressInEditor;
-	}
-
-	public bool IsDownloading (string requestURL) {
-		if (isInQueue (requestURL)) {
-			return true;
-		} else {
-			return false;
-		}
 	}
 
 	/*
@@ -473,7 +659,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	private void onErrorDL (string requestURL, string errorMessage, DOWNLOAD_ERROR errorCode) {
 		//TODO : convert error message to error code
 		if (OnError != null) {
-			OnError (requestURL, errorMessage, errorCode);
+			OnError (requestURL, errorCode, errorMessage);
 		}
 	}
 
@@ -559,28 +745,5 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 
 	#endregion // end : UNITY_EDITOR && UNITY_STANDALONE
 
-	#endif
-
-
-	#region /*** Common Functions ***/
-	/*
-	* Common Functions
-	*/
-	private bool isInvalidURL (string url) {
-		//Has Scheme or not
-		//file url or not
-		Uri uriResult;
-		if (Uri.TryCreate (url, UriKind.Absolute, out uriResult) && (uriResult.Scheme == Uri.UriSchemeHttp || uriResult.Scheme == Uri.UriSchemeHttps)) {
-			return false;		
-		} else {
-			return true;
-		}
-	}
-
-	private bool isInvalidPath (string destPath) {
-		//No dir
-		return !Directory.Exists(destPath);
-	}
-
-	#endregion
+	#endif   
 }
