@@ -13,11 +13,15 @@
 
 @interface EasyBgDownloader : NSObject
 
-- (id)initWithProductNameAndAttachedGameObject:(NSString *)prdName gameObjName:(NSString *)gameObjName cacheEnabled:(BOOL)cacheEnabled;
-- (void)startDownload:(NSString *)requestedURL destinationPath:(NSString *)destinationPath;
-- (void)stopDownload:(NSString *)requestedURL;
-- (double)getProgress:(NSString *)requestedURL;
-- (bool)isDownloading:(NSString *)requestedURL;
+- (id)initWithProductNameAndGameObjName:(NSString *)prdName gameObjName:(NSString *)gameObjName cacheEnabled:(BOOL)cacheEnabled;
+- (void)initEBD;
+- (void)terminateEBD;
+- (void)resumeEBD;
+- (void)pauseEBD;
+- (void)startDL:(NSString *)requestURL destPath:(NSString *)destPath;
+- (void)stopDL:(NSString *)requestURL;
+- (int)getStatus:(NSString *)requestURL;
+- (float)getProgress:(NSString *)requestURL;
 
 @end
 
