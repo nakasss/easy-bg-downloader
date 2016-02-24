@@ -82,10 +82,8 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 
 	void OnApplicationPause (bool pauseStatus) {
 		if (pauseStatus) {
-            Debug.Log("Start Update in Unity");
 			pauseEBD ();
 		} else {
-            Debug.Log("Stop Update in Unity");
 			resumeEBD ();
 		}
 	}

@@ -2,7 +2,7 @@
 //  EasyBgDownloader.m
 //  
 //
-//  Created by Yuta Nakagawa on 2/16/16.
+//
 //
 //
 

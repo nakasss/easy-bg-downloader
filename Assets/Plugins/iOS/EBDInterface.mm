@@ -1,8 +1,8 @@
 //
 //  EasyBgDownloaderInterface.m
-//  Unity-iPhone
+//  
 //
-//  Created by Yuta Nakagawa on 2/18/16.
+//
 //
 //
 
