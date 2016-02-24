@@ -20,7 +20,6 @@
 }
 @property (nonatomic, readwrite) NSURLSession *_session;
 @end
-static NSString *const EBD_USERDEFAULTS_URL_KEY_PREFIX = @"EBD_USERDEFAULTS_REQUESTURL_";
 static NSString *const EBD_USERDEFAULTS_TASKID_KEY_PREFIX = @"EBD_USERDEFAULTS_TASKID_";
 
 
@@ -41,7 +40,7 @@ static NSString *const EBD_USERDEFAULTS_TASKID_KEY_PREFIX = @"EBD_USERDEFAULTS_T
 /*
  * Set
  */
-- (void)setTask:(NSString *)requestURL destPath:(NSString *)destPath downloadTask:(nonnull NSURLSessionDownloadTask *)downloadTask {
+- (void)setTask:(NSString *)requestURL destPath:(NSString *)destPath downloadTask:(NSURLSessionDownloadTask *)downloadTask {
     NSInteger taskId = downloadTask.taskIdentifier;
     [self setTaskId:requestURL taskId:taskId];
     [self setDestPath:taskId destPath:destPath];
@@ -50,7 +49,7 @@ static NSString *const EBD_USERDEFAULTS_TASKID_KEY_PREFIX = @"EBD_USERDEFAULTS_T
 - (void)setTaskId:(NSString *)requestURL taskId:(NSInteger)taskId {
     NSNumber *taskIdObj = [[NSNumber alloc] initWithInteger:taskId];
     [_taskIdList setObject:taskIdObj forKey:requestURL];
-    [self setTaskId:requestURL taskId:taskId];
+    [self setTaskIdToUD:requestURL taskId:taskId];
 }
 - (void)setDestPath:(NSInteger)taskId destPath:(NSString *)destPath {
     NSNumber *taskIdObj = [[NSNumber alloc] initWithInteger:taskId];
@@ -62,9 +61,8 @@ static NSString *const EBD_USERDEFAULTS_TASKID_KEY_PREFIX = @"EBD_USERDEFAULTS_T
     [_taskList setObject:downloadTask forKey:taskIdObj];
 }
 - (void)setTaskIdToUD:(NSString *)requestURL taskId:(NSInteger)taskId {
-    NSString *keyRequestUrl = [EBD_USERDEFAULTS_URL_KEY_PREFIX stringByAppendingString:requestURL];
     NSUserDefaults *userDefault = [NSUserDefaults standardUserDefaults];
-    [userDefault setInteger:taskId forKey:keyRequestUrl];
+    [userDefault setInteger:taskId forKey:requestURL];
     [userDefault synchronize];
 }
 - (void)setDestPathToUD:(NSInteger)taskId destPath:(NSString *)destPath {
@@ -152,9 +150,8 @@ static NSString *const EBD_USERDEFAULTS_TASKID_KEY_PREFIX = @"EBD_USERDEFAULTS_T
     return nil;
 }
 - (NSInteger)getTaskIdFromUD:(NSString *)requestURL {
-    NSString *keyUrl = [EBD_USERDEFAULTS_URL_KEY_PREFIX stringByAppendingString:requestURL];
     NSUserDefaults *userDefault = [NSUserDefaults standardUserDefaults];
-    return [userDefault integerForKey:keyUrl];
+    return [userDefault integerForKey:requestURL];
 }
 - (NSString *)getDestPathFromUD:(NSInteger)taskId {
     NSString *keyTaskId = [EBD_USERDEFAULTS_TASKID_KEY_PREFIX stringByAppendingString:[NSString stringWithFormat:@"%ld", taskId]];
@@ -207,9 +204,8 @@ static NSString *const EBD_USERDEFAULTS_TASKID_KEY_PREFIX = @"EBD_USERDEFAULTS_T
     [_taskList removeObjectForKey:taskIdObj];
 }
 - (void)removeTaskIdFromUD:(NSString *)requestURL {
-    NSString *keyUrl = [EBD_USERDEFAULTS_URL_KEY_PREFIX stringByAppendingString:requestURL];
     NSUserDefaults *userDefault = [NSUserDefaults standardUserDefaults];
-    [userDefault removeObjectForKey:keyUrl];
+    [userDefault removeObjectForKey:requestURL];
     [userDefault synchronize];
 }
 - (void)removeDestPathFromUD:(NSInteger)taskId {
@@ -218,6 +214,11 @@ static NSString *const EBD_USERDEFAULTS_TASKID_KEY_PREFIX = @"EBD_USERDEFAULTS_T
     [userDefault removeObjectForKey:keyTaskId];
     [userDefault synchronize];
 }
+
+
+/*
+ * Clear
+ */
 
 
 @end

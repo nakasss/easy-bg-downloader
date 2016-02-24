@@ -15,18 +15,11 @@
     NSString *_currentRequestURL;
     NSURLSessionDownloadTask *_currentDownloadTask;
     float _currentProgress;
-    EBDTaskManager *_taskManager;
+    //EBDTaskManager *_taskManager;
     
     NSString *_prdName;
     NSString *_gameObjName;
     BOOL _cacheEnabled;
-    
-    //<NSString, NSNumber>
-    NSMutableDictionary *_taskIdList;
-    //<NSNumber, NSURLSessionDownloadTask>
-    NSMutableDictionary *_taskList;
-    //<NSNumber, NSString>
-    NSMutableDictionary *_destPathList;
 }
 typedef NS_ENUM (int, EBDUnityStatus) {
     UnityStatusNotInQueue = -100,
@@ -36,6 +29,7 @@ typedef NS_ENUM (int, EBDUnityStatus) {
     UnityStatusFailed = 40
 };
 @property (nonatomic, readwrite) NSURLSession *session;
+@property (nonatomic, readwrite) EBDTaskManager *_taskManager;
 @end
 
 static NSString *const EBD_SESSION_ID_PREFIX = @"EBD_SESSION_INDENTIFIER_";
@@ -55,10 +49,6 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
         _currentRequestURL = nil;
         _currentDownloadTask = nil;
         _currentProgress = 0.0f;
-        _taskManager = [[EBDTaskManager alloc] initWithSession:[self getSession]];
-        _taskIdList = [NSMutableDictionary dictionary];
-        _destPathList = [NSMutableDictionary dictionary];
-        _taskList = [NSMutableDictionary dictionary];
     }
     return self;
 }
@@ -85,15 +75,19 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
     NSURLSessionDownloadTask *downloadTask = [[self getSession] downloadTaskWithURL:url];
     
     [downloadTask resume];
-    [_taskManager setTask:requestURL destPath:destPath downloadTask:downloadTask];
+    [[self getTaskManager] setTask:requestURL destPath:destPath downloadTask:downloadTask];
 }
 
 - (void)stopDL:(NSString *)requestURL {
-    NSURLSessionDownloadTask *downloadTask = [_taskManager getDownloadTaskByURL:requestURL];
+    NSURLSessionDownloadTask *downloadTask = [[self getTaskManager] getDownloadTaskByURL:requestURL];
     if (downloadTask == nil) return;
     
+    if ([_currentRequestURL isEqualToString:requestURL]) {
+        [self initCurrentTask];
+    }
+    
     [downloadTask cancel];
-    [_taskManager removeTask:requestURL];
+    [[self getTaskManager] removeTask:requestURL];
 }
 
 
@@ -102,7 +96,7 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
  */
 - (int)getStatus:(NSString *)requestURL {
     int status = UnityStatusNotInQueue;
-    NSURLSessionDownloadTask *downloadTask = [_taskManager getDownloadTaskByURL:requestURL];
+    NSURLSessionDownloadTask *downloadTask = [[self getTaskManager] getDownloadTaskByURL:requestURL];
     if (downloadTask == nil) return status;
     
     switch (downloadTask.state) {
@@ -113,7 +107,9 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
             status = UnityStatusPaused;
             break;
         case NSURLSessionTaskStateCompleted:
-            [self onComplete:downloadTask.taskIdentifier];
+            status = UnityStatusNotInQueue;
+            break;
+        case NSURLSessionTaskStateCanceling:
             status = UnityStatusNotInQueue;
             break;
         default:
@@ -128,8 +124,12 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
  * Donwload Progress
  */
 - (float)getProgress:(NSString *)requestURL {
-    if (![_currentRequestURL isEqualToString:requestURL]) {
+    if (!_currentRequestURL || ![_currentRequestURL isEqualToString:requestURL]) {
         [self changeCurrentTaskByURL:requestURL];
+    }
+    
+    if (!_currentDownloadTask || _currentDownloadTask.state == NSURLSessionTaskStateCompleted || _currentDownloadTask.state == NSURLSessionTaskStateCanceling) {
+        return 0.0f;
     }
     
     return _currentProgress;
@@ -140,12 +140,20 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
  * Download Event
  */
 - (void)onComplete:(NSInteger)taskId {
-    NSString *requestURL = [_taskManager getUrlByTaskId:taskId];
-    NSString *destPath = [_taskManager getDestPath:taskId];
-    if (requestURL != nil && destPath != nil) {
-        [_taskManager removeTask:requestURL];
-        NSString *taskInfo = [NSString stringWithFormat:@"%@,%@", requestURL, destPath];
-        UnitySendMessage([_gameObjName UTF8String], [ON_COMPLETE_UNITY_METHOD UTF8String], [taskInfo UTF8String]);
+    NSString *requestURL = [[self getTaskManager] getUrlByTaskId:taskId];
+    
+    if (requestURL) {
+        NSString *destPath = [[self getTaskManager] getDestPath:taskId];
+        [[self getTaskManager] removeTask:requestURL];
+        
+        if ([_currentRequestURL isEqualToString:requestURL]) {
+            [self initCurrentTask];
+        }
+        
+        if (destPath) {
+            NSString *taskInfo = [NSString stringWithFormat:@"%@,%@", requestURL, destPath];
+            UnitySendMessage([_gameObjName UTF8String], [ON_COMPLETE_UNITY_METHOD UTF8String], [taskInfo UTF8String]);
+        }
     }
 }
 
@@ -160,16 +168,29 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
 - (NSURLSession *)getSession {
     if (!self.session) {
         NSString *identifier = [EBD_SESSION_ID_PREFIX stringByAppendingString:_prdName];
-        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfiguration:identifier];
+        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:identifier];
         
         self.session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:nil];
     }
     return self.session;
 }
 
+- (EBDTaskManager *)getTaskManager {
+    if (!self._taskManager) {
+        self._taskManager = [[EBDTaskManager alloc] initWithSession:[self getSession]];
+    }
+    return self._taskManager;
+}
+
 - (void)changeCurrentTaskByURL:(NSString *)requestURL {
     _currentRequestURL = requestURL;
-    _currentDownloadTask = [_taskManager getDownloadTaskByURL:requestURL];
+    _currentDownloadTask = [[self getTaskManager] getDownloadTaskByURL:requestURL];
+    _currentProgress = 0.0f;
+}
+
+- (void)initCurrentTask {
+    _currentRequestURL = nil;
+    _currentDownloadTask = nil;
     _currentProgress = 0.0f;
 }
 
@@ -211,7 +232,7 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
 #pragma mark -- NSURLSessionTaskDelegate --
 
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didCompleteWithError:(NSError *)error {
-    if (error != nil) {
+    if (error) {
         //TODO : Error Handling
         NSLog(@"Download failed");
         [self onFailed:task.taskIdentifier];
@@ -232,13 +253,20 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
     NSString *requestURL = [downloadTask.originalRequest.URL absoluteString];
     NSLog(@"Complete task URL : %@", requestURL);
     NSInteger taskId = downloadTask.taskIdentifier;
+    /*
+    NSInteger taskId = [[self getTaskManager] getTaskId:requestURL];
+    if (taskId == 0) {
+        taskId = downloadTask.taskIdentifier;
+    }
+    */
     NSLog(@"Complete task Id : %ld", taskId);
-    NSString *destPath = [_taskManager getDestPath:taskId];
+    NSString *destPath = [[self getTaskManager] getDestPath:taskId];
     NSLog(@"Complete dest path : %@", destPath);
     
     if (!destPath) {
         //TODO : Error Handling
-        NSLog(@"Saving avoided cause there is no dest path");
+        NSLog(@"Avoided saving cause there is no dest path and remove Task");
+        [[self getTaskManager] removeTask:requestURL];
         return;
     }
     
@@ -249,7 +277,7 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
 }
 
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didWriteData:(int64_t)bytesWritten totalBytesWritten:(int64_t)totalBytesWritten totalBytesExpectedToWrite:(int64_t)totalBytesExpectedToWrite {
-    if (_currentDownloadTask != nil || _currentDownloadTask != downloadTask) return;
+    if (_currentDownloadTask == nil || _currentDownloadTask != downloadTask) return;
     
     _currentProgress = (float)((double)totalBytesWritten / (double)totalBytesExpectedToWrite);
 }
