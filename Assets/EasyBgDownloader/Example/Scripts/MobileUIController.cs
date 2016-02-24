@@ -90,7 +90,6 @@ public class MobileUIController : MonoBehaviour {
 	 */
 	public void OnCompleteDownload (string requestURL, string destPath) {
         browseView.RefreshFileList ();
-        
         if (currentDownloadURL == requestURL) {
 		    mobileUIView.EnableStartButton ();
             mobileUIView.ChangeDownloadingFileName("No file downloading");

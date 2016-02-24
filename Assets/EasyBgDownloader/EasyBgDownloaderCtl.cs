@@ -264,7 +264,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
         
         string[] errorInfoStrings = errorInfo.Split(','); //[0] requestURL, [1] errorCode, [2] errorMessage
 		string requestURL = !string.IsNullOrEmpty(errorInfoStrings[0]) ? errorInfoStrings[0] : "";
-        int errorCodeInt = !string.IsNullOrEmpty(errorInfoStrings[1]) ? errorInfoStrings[1] : (int)DOWNLOAD_ERROR.UNKNOWN_ERROR;
+        int errorCodeInt = !string.IsNullOrEmpty(errorInfoStrings[1]) ? int.Parse(errorInfoStrings[1]) : (int)DOWNLOAD_ERROR.UNKNOWN_ERROR;
         DOWNLOAD_ERROR errorCode;
         switch (errorCodeInt) {
             case (int)DOWNLOAD_ERROR.NETWORK_ERROR:
@@ -345,7 +345,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	 * Life Cycle Control
 	 */
     private void initEBD() {
-		EBDInterfaceInit();
+		EBDInterfaceInit(Application.productName, gameObject.name, cacheEnabled);
 	}
 
 	private void resumeEBD() {
@@ -423,23 +423,23 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
         return EBDInterfaceGetStatus(requestURL);
     }
     
-    public bool IsInQueue (string requestURL) {
+    public bool IsInQueue (string requestURL = null) {
         return (GetStatus(requestURL) != (int)DOWNLOAD_STATUS.NOT_IN_QUEUE) ? true : false;
     }
     
-    public bool IsPending (string requestURL) {
+    public bool IsPending (string requestURL = null) {
         return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.PENDING) ? true : false;
     }
     
-    public bool IsRunning (string requestURL) {
+    public bool IsRunning (string requestURL = null) {
         return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.RUNNING) ? true : false;
     }
     
-    public bool IsPaused (string requestURL) {
+    public bool IsPaused (string requestURL = null) {
         return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.PAUSED) ? true : false;
     }
     
-    public bool IsFailed (string requestURL) {
+    public bool IsFailed (string requestURL = null) {
         return (GetStatus(requestURL) == (int)DOWNLOAD_STATUS.FAILED) ? true : false;
     }
     
@@ -477,7 +477,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
         
         string[] errorInfoStrings = errorInfo.Split(','); //[0] requestURL, [1] errorCode, [2] errorMessage
 		string requestURL = !string.IsNullOrEmpty(errorInfoStrings[0]) ? errorInfoStrings[0] : "";
-        int errorCodeInt = !string.IsNullOrEmpty(errorInfoStrings[1]) ? errorInfoStrings[1] : (int)DOWNLOAD_ERROR.UNKNOWN_ERROR;
+        int errorCodeInt = !string.IsNullOrEmpty(errorInfoStrings[1]) ? int.Parse(errorInfoStrings[1]) : (int)DOWNLOAD_ERROR.UNKNOWN_ERROR;
         DOWNLOAD_ERROR errorCode;
         switch (errorCodeInt) {
             case (int)DOWNLOAD_ERROR.NETWORK_ERROR:
@@ -509,25 +509,25 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
     [DllImport("__Internal")]
 	private static extern void EBDInterfacePause ();
     [DllImport("__Internal")]
-	private static extern void EBDInterfaceStartDL (string requestURL,  string destPath);
+	private static extern void EBDInterfaceStartDL (string requestURL, string destPath);
     [DllImport("__Internal")]
-	private static extern void EBDInterfaceStopDL (string requestURL);
+	private static extern void EBDInterfaceStopDL(string requestURL);
     [DllImport("__Internal")]
-	private static extern int EBDInterfaceGetStatus (string requestURL);
+	private static extern int EBDInterfaceGetStatus(string requestURL);
     [DllImport("__Internal")]
-	private static extern float EBDInterfaceGetProgress (string requestURL);
+	private static extern float EBDInterfaceGetProgress(string requestURL);
     //test
 	[DllImport("__Internal")]
-	private static extern void EasyBgDownloaderTestVoid ();
+	private static extern void EBDTestVoid ();
 	[DllImport("__Internal")]
-	private static extern int EasyBgDownloaderTestReturnInt ();
+	private static extern int EBDTestReturnInt ();
 	[DllImport("__Internal")]
-	private static extern void EasyBgDownloaderTestValueInt (int i);
+	private static extern void EBDTestArgInt (int i);
 	public void CallTest () {
-		EasyBgDownloaderTestVoid ();
+		EBDTestVoid();
 	}
 	public void CallStaticTest () {
-		EasyBgDownloaderTestValueInt (10);
+		EBDTestArgInt(10);
 	}
 	public void CallUnitySendMessage (string message) {
 		Debug.Log ("Get Message and Call it from Unity : " + message);
