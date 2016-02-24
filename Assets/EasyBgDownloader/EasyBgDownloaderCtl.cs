@@ -386,7 +386,8 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
             naviTitle = Path.GetFileName(requestURL);
         }
         */
-        string destFilePath = "file://" + DestinationDirectoryPath + "/" + Path.GetFileName(requestURL); 
+        //string destFilePath = "file://" + DestinationDirectoryPath + "/" + Path.GetFileName(requestURL);
+        string destFilePath = DestinationDirectoryPath + "/" + Path.GetFileName(requestURL); 
         
         EBDInterfaceStartDL(requestURL, destFilePath);
 	}
