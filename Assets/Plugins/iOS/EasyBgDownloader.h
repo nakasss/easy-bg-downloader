@@ -13,7 +13,7 @@
 
 @interface EasyBgDownloader : NSObject
 
-- (id)initWithProductNameAndGameObjName:(NSString *)prdName gameObjName:(NSString *)gameObjName cacheEnabled:(BOOL)cacheEnabled;
+- (id)initWithGameObjName:(NSString *)gameObjName cacheEnabled:(BOOL)cacheEnabled notificationEnabled:(BOOL)notificationEnabled;
 - (void)initEBD;
 - (void)terminateEBD;
 - (void)resumeEBD;

@@ -6,18 +6,19 @@
 //
 //
 
-#include "EasyBgDownloader.h"
 #import <Foundation/Foundation.h>
+#include "EasyBgDownloader.h"
 
 
 static NSString *_productName = @"SampleProduct";
 static NSString *_gameObjName = @"GameObject";
 static BOOL _cacheEnabled = NO;
+static BOOL _notificationEnabled = YES;
 static EasyBgDownloader *_Downloader;
 
 static EasyBgDownloader *_GetDownloader() {
     if (!_Downloader) {
-        _Downloader = [[EasyBgDownloader alloc] initWithProductNameAndGameObjName:_productName gameObjName:_gameObjName cacheEnabled:_cacheEnabled];
+        _Downloader = [[EasyBgDownloader alloc] initWithGameObjName:_gameObjName cacheEnabled:_cacheEnabled notificationEnabled:_notificationEnabled];
     }
     return _Downloader;
 }
@@ -26,10 +27,10 @@ static EasyBgDownloader *_GetDownloader() {
 /*
  * Interface
  */
-extern "C" void EBDInterfaceInit(const char *productName, const char *gameObjName, bool cacheEnabled) {
-    _productName = [[NSString alloc] initWithUTF8String:productName];
+extern "C" void EBDInterfaceInit(const char *gameObjName, bool cacheEnabled, bool notificationEnabled) {
     _gameObjName = [[NSString alloc] initWithUTF8String:gameObjName];
     _cacheEnabled = cacheEnabled;
+    _notificationEnabled = notificationEnabled;
     
     [_GetDownloader() initEBD];
 }

@@ -6,20 +6,19 @@
 //
 //
 
-#import <Foundation/Foundation.h>
 #import "EasyBgDownloader.h"
 #import "EBDTaskManager.h"
 
 
-@interface EasyBgDownloader () <NSURLSessionDelegate> {
+@interface EasyBgDownloader () <NSURLSessionDelegate, NSURLSessionTaskDelegate, NSURLSessionDownloadDelegate> {
     NSString *_currentRequestURL;
     NSURLSessionDownloadTask *_currentDownloadTask;
     float _currentProgress;
     //EBDTaskManager *_taskManager;
     
-    NSString *_prdName;
     NSString *_gameObjName;
     BOOL _cacheEnabled;
+    BOOL _notificationEnabled;
 }
 typedef NS_ENUM (int, EBDUnityStatus) {
     UnityStatusNotInQueue = -100,
@@ -32,7 +31,7 @@ typedef NS_ENUM (int, EBDUnityStatus) {
 @property (nonatomic, readwrite) EBDTaskManager *_taskManager;
 @end
 
-static NSString *const EBD_SESSION_ID_PREFIX = @"EBD_SESSION_INDENTIFIER_";
+static NSString *const EBD_SESSION_ID_PREFIX = @"EBD_SESSION_";
 static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
 
 @implementation EasyBgDownloader
@@ -40,12 +39,16 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
 /*
  * override init functions
  */
-- (id)initWithProductNameAndGameObjName:(NSString *)prdName gameObjName:(NSString *)gameObjName cacheEnabled:(BOOL)cacheEnabled {
-    if ((self = [super init])) {
-        _prdName = prdName;
+- (id)initWithGameObjName:(NSString *)gameObjName cacheEnabled:(BOOL)cacheEnabled notificationEnabled:(BOOL)notificationEnabled {
+    if ((self = [self init])) {
         _gameObjName = gameObjName;
         _cacheEnabled = cacheEnabled;
-        
+        _notificationEnabled = notificationEnabled;
+    }
+    return self;
+}
+- (id)init {
+    if ((self = [super init])) {
         _currentRequestURL = nil;
         _currentDownloadTask = nil;
         _currentProgress = 0.0f;
@@ -151,6 +154,7 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
         }
         
         if (destPath) {
+            [self presentLocalNotification:@"Finish Download!"];
             NSString *taskInfo = [NSString stringWithFormat:@"%@,%@", requestURL, destPath];
             UnitySendMessage([_gameObjName UTF8String], [ON_COMPLETE_UNITY_METHOD UTF8String], [taskInfo UTF8String]);
         }
@@ -167,8 +171,8 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
  */
 - (NSURLSession *)getSession {
     if (!self.session) {
-        NSString *identifier = [EBD_SESSION_ID_PREFIX stringByAppendingString:_prdName];
-        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:identifier];
+        NSString *sessionIdentifier = [EBD_SESSION_ID_PREFIX stringByAppendingString:[[NSBundle mainBundle] bundleIdentifier]];
+        NSURLSessionConfiguration *configuration = [NSURLSessionConfiguration backgroundSessionConfigurationWithIdentifier:sessionIdentifier];
         
         self.session = [NSURLSession sessionWithConfiguration:configuration delegate:self delegateQueue:nil];
     }
@@ -194,18 +198,31 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
     _currentProgress = 0.0f;
 }
 
-- (void)saveFileWithPath:(NSData *)contents localPath:(NSString *)localPath {
+- (BOOL)copyFileTpPath:(NSURL *)dataLocation destPath:(NSString *)destURLStr {
+    NSURL *destURL = [NSURL URLWithString:destURLStr];
     NSFileManager *fileManager = [NSFileManager defaultManager];
-    [fileManager createFileAtPath:localPath contents:[NSData data] attributes:nil];
-    NSFileHandle *file = [NSFileHandle fileHandleForWritingAtPath:localPath];
-    [file writeData:contents];
+    [fileManager removeItemAtURL:destURL error:nil];
+    BOOL copied = [fileManager copyItemAtURL:dataLocation toURL:destURL error:nil];
+    return copied;
 }
 
-- (void)pushLocalNotification:(NSString *)message {
-    UILocalNotification *localNotification = [[UILocalNotification alloc] init];
-    localNotification.alertBody = message;
-    localNotification.soundName = UILocalNotificationDefaultSoundName;
-    [[UIApplication sharedApplication] presentLocalNotificationNow:localNotification];
+- (void)presentLocalNotification:(NSString *)message {
+    if (_notificationEnabled && [EasyBgDownloader isAppInBackground]) {
+        UILocalNotification* localNotification = [[UILocalNotification alloc] init];
+        localNotification.alertBody = message;
+        localNotification.alertAction = @"OK";
+        localNotification.soundName = UILocalNotificationDefaultSoundName;
+        [[UIApplication sharedApplication] presentLocalNotificationNow:localNotification];
+    }
+}
+
++ (BOOL)isAppInBackground {
+    UIApplicationState appState = [[UIApplication sharedApplication] applicationState];
+    if (appState == UIApplicationStateBackground) {
+        return YES;
+    } else {
+        return NO;
+    }
 }
 
 
@@ -215,18 +232,7 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
 #pragma mark -- NSURLSessionDelegate --
 
 - (void)URLSessionDidFinishEventsForBackgroundURLSession:(NSURLSession *)session {
-    NSString *ebdIdentifier = [EBD_SESSION_ID_PREFIX stringByAppendingString:_prdName];
-    if (![session.configuration.identifier isEqualToString:ebdIdentifier]) {
-        return;
-    }
     
-    [session getTasksWithCompletionHandler:^(NSArray<NSURLSessionDataTask *> * _Nonnull dataTasks, NSArray<NSURLSessionUploadTask *> * _Nonnull uploadTasks, NSArray<NSURLSessionDownloadTask *> * _Nonnull downloadTasks) {
-        for (NSURLSessionDownloadTask *task in downloadTasks) {
-            if (task.state == NSURLSessionTaskStateCompleted) {
-                [self pushLocalNotification:[task.originalRequest.URL absoluteString]];
-            }
-        }
-    }];
 }
 
 #pragma mark -- NSURLSessionTaskDelegate --
@@ -245,13 +251,12 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
     NSData *data = [NSData dataWithContentsOfURL:location];
     if (data.length == 0) {
         //TODO : Error Handling
-        NSLog(@"Download failed");
+        NSLog(@"Download failed cause no data.");
         [self onFailed:downloadTask.taskIdentifier];
         return;
     }
     
     NSString *requestURL = [downloadTask.originalRequest.URL absoluteString];
-    NSLog(@"Complete task URL : %@", requestURL);
     NSInteger taskId = downloadTask.taskIdentifier;
     /*
     NSInteger taskId = [[self getTaskManager] getTaskId:requestURL];
@@ -259,9 +264,7 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
         taskId = downloadTask.taskIdentifier;
     }
     */
-    NSLog(@"Complete task Id : %ld", taskId);
     NSString *destPath = [[self getTaskManager] getDestPath:taskId];
-    NSLog(@"Complete dest path : %@", destPath);
     
     if (!destPath) {
         //TODO : Error Handling
@@ -270,9 +273,10 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
         return;
     }
     
-    NSLog(@"Start saving");
-    [self saveFileWithPath:data localPath:destPath];
-    NSLog(@"Finish saving");
+    //[self saveFileWithPath:data localPath:destPath];
+    NSLog(@"Original Location Path : %@", [location absoluteString]);
+    NSLog(@"Original Dest Path : %@", destPath);
+    [self copyFileTpPath:location destPath:destPath];
     [self onComplete:taskId];
 }
 
@@ -285,10 +289,5 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
 - (void)URLSession:(NSURLSession *)session downloadTask:(NSURLSessionDownloadTask *)downloadTask didResumeAtOffset:(int64_t)fileOffset expectedTotalBytes:(int64_t)expectedTotalBytes {
 }
 
-#pragma mark -- UIApplicationDelegate --
-
-- (void)application:(UIApplication *)application handleEventsForBackgroundURLSession:(NSString *)identifier completionHandler:(void (^)())completionHandler {
-    
-}
 
 @end

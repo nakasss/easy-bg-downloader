@@ -7,16 +7,16 @@ using UnityEngine;
 
 
 public class EasyBgDownloaderCtl : MonoBehaviour {
-    [SerializeField]
+    [SerializeField, TooltipAttribute("URL where file that to be downloaded exists.")]
 	private string fileURL = "";
-	[SerializeField]
+	[SerializeField, TooltipAttribute("Local path where downloaded file will be.")]
 	private string destinationDirPath = "";
-    [SerializeField]
-	public bool notificationEnabled = false;
-    [SerializeField]
-	public bool cacheEnabled = false;
+    [SerializeField, TooltipAttribute("If it's enabled, you get notification when download proccess finished as background.")]
+	private bool notificationEnabled = true;
+    [SerializeField, TooltipAttribute("If it's enabled, download proccess will be cached and you resume process after proccess stoped.")]
+	private bool cacheEnabled = false;
 
-	//private bool isDownloading = false;
+
 	private static readonly string DEFAULT_CACHE_DIR = "ebd_tmp";
 
 	public string DestinationDirectoryPath {
@@ -91,6 +91,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	void OnDestroy () {
 		terminateEBD ();
 	}
+    
     
     
     
@@ -343,7 +344,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	 * Life Cycle Control
 	 */
     private void initEBD() {
-		EBDInterfaceInit(Application.productName, gameObject.name, cacheEnabled);
+		EBDInterfaceInit(gameObject.name, cacheEnabled, notificationEnabled);
 	}
 
 	private void resumeEBD() {
@@ -384,8 +385,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
             naviTitle = Path.GetFileName(requestURL);
         }
         */
-        //string destFilePath = "file://" + DestinationDirectoryPath + "/" + Path.GetFileName(requestURL);
-        string destFilePath = DestinationDirectoryPath + "/" + Path.GetFileName(requestURL); 
+        string destFilePath = "file://" + DestinationDirectoryPath + "/" + Path.GetFileName(requestURL); 
         
         EBDInterfaceStartDL(requestURL, destFilePath);
 	}
@@ -500,7 +500,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	 * Plugin Interface
 	 */
     [DllImport("__Internal")]
-	private static extern void EBDInterfaceInit (string productName, string gameObjName, bool cacheEnabled);
+	private static extern void EBDInterfaceInit (string gameObjName, bool cacheEnabled, bool notificationEnabled);
 	[DllImport("__Internal")]
 	private static extern void EBDInterfaceTerminate ();
     [DllImport("__Internal")]
