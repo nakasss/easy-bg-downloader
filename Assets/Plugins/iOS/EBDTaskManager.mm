@@ -1,12 +1,12 @@
 //
-//  EasyBgDownloader.m
+//  EasyBgDownloader.mm
 //  
 //
-//  Created by Yuta Nakagawa on 2/16/16.
+//  
 //
 //
 
-#import <Foundation/Foundation.h>
+
 #import "EBDTaskManager.h"
 
 

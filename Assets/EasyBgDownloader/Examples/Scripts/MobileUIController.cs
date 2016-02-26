@@ -62,7 +62,7 @@ public class MobileUIController : MonoBehaviour {
 
 	private void OnClickStopBtn (string inputURL) {
         currentDownloadURL = null;
-        mobileUIView.ChangeHeaderLabel("DOWNLOAD CANCELD");
+        mobileUIView.ChangeHeaderLabel("CANCELD");
         mobileUIView.ChangeDownloadingFileName("No file downloading");
         mobileUIView.ChangeProgress(0.0f);
 		mobileUIView.EnableStartButton ();
@@ -93,7 +93,7 @@ public class MobileUIController : MonoBehaviour {
         if (currentDownloadURL == requestURL) {
 		    mobileUIView.EnableStartButton ();
             mobileUIView.ChangeDownloadingFileName("No file downloading");
-            mobileUIView.ChangeHeaderLabel("FINISH DOWNLOAD");
+            mobileUIView.ChangeHeaderLabel("COMPLETE");
             mobileUIView.ChangeProgress(0.0f);
         }
 	}
