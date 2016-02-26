@@ -295,7 +295,7 @@ public class EasyBgDownloaderCtl : MonoBehaviour {
 	 */
     private AndroidJavaObject getJavaObj() {
 		if (androidJavaObj == null) {
-			androidJavaObj = new AndroidJavaObject(ANDROID_DOWNLOAD_MANAGER_PACKAGE_CLASS_NAME, gameObject.name, cacheEnabled);
+			androidJavaObj = new AndroidJavaObject(ANDROID_DOWNLOAD_MANAGER_PACKAGE_CLASS_NAME, gameObject.name, notificationEnabled, cacheEnabled);
 		}
 		return androidJavaObj;
 	}

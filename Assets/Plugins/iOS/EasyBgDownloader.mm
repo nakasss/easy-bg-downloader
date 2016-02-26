@@ -1,5 +1,5 @@
 //
-//  EasyBgDownloader.m
+//  EasyBgDownloader.mm
 //  
 //
 //
@@ -274,8 +274,6 @@ static NSString *const ON_COMPLETE_UNITY_METHOD = @"onCompleteDL";
     }
     
     //[self saveFileWithPath:data localPath:destPath];
-    NSLog(@"Original Location Path : %@", [location absoluteString]);
-    NSLog(@"Original Dest Path : %@", destPath);
     [self copyFileTpPath:location destPath:destPath];
     [self onComplete:taskId];
 }

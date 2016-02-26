@@ -1,5 +1,5 @@
 //
-//  EBDAppDeletate.m
+//  EBDAppDeletate.mm
 //  
 //
 //

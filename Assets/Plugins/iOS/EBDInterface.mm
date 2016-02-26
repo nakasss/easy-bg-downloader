@@ -1,5 +1,5 @@
 //
-//  EasyBgDownloaderInterface.m
+//  EBDInterface.mm
 //  
 //
 //

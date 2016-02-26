@@ -1,5 +1,5 @@
 //
-//  EasyBgDownloader.m
+//  EasyBgDownloader.mm
 //  
 //
 //  
